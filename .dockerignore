@@ -1,0 +1,6 @@
+.git
+target
+out
+.env
+.env.*
+.DS_Store

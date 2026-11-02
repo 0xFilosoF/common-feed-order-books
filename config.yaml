@@ -1,0 +1,23 @@
+app:
+  io:
+    threads: 2
+  feed:
+    channel_capacity: 32
+    channel_timeout_ms: 10
+    connect_timeout_ms: 10000
+    idle_timeout_ms: 3000
+    reconnect_initial_ms: 250
+    reconnect_max_ms: 30000
+    max_bad_frames: 3
+  redis:
+    url: redis://127.0.0.1:6379/0
+    key: order-books:ETHUSDT:snapshot
+    snapshot_interval_ms: 250
+    ttl_ms: 5000
+    io_timeout_ms: 1000
+  signal:
+    threshold_bps: "2"
+    report_interval_ms: 1000
+logs:
+  level: info
+  json: false

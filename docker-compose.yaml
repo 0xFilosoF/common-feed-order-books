@@ -1,0 +1,30 @@
+services:
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 1s
+      retries: 10
+  app:
+    build: .
+    environment:
+      BOOKS__APP__REDIS__URL: redis://redis:6379/0
+      BOOKS__LOGS__JSON: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
+    init: true
+  observer:
+    profiles: ["observe"]
+    build: .
+    entrypoint: ["snapshot-watch"]
+    environment:
+      BOOKS__APP__REDIS__URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    init: true
