@@ -135,7 +135,7 @@ the supplied YAML.
 | `BOOKS__APP__FEED__CONNECT_TIMEOUT_MS` | `10000` | WebSocket connection/handshake deadline |
 | `BOOKS__APP__FEED__IDLE_TIMEOUT_MS` | `3000` | Watchdog without valid depth snapshots; must exceed 110 ms |
 | `BOOKS__APP__FEED__RECONNECT_INITIAL_MS` | `250` | Initial backoff upper bound before jitter |
-| `BOOKS__APP__FEED__RECONNECT_MAX_MS` | `30000` | Maximum backoff upper bound |
+| `BOOKS__APP__FEED__RECONNECT_MAX_MS` | `30000` | Maximum local backoff upper bound; server cooldowns may exceed it |
 | `BOOKS__APP__FEED__MAX_BAD_FRAMES` | `3` | Consecutive invalid frames before reconnect |
 | `BOOKS__APP__SIGNAL__THRESHOLD_BPS` | `2` | Relative mid-price signal threshold, chosen by you |
 | `BOOKS__APP__SIGNAL__REPORT_INTERVAL_MS` | `1000` | Maximum intended interval between signal reports, subject to scheduling |
@@ -318,6 +318,16 @@ restores the book. A handshake has a 10 s deadline. Exponential backoff uses
 jitter, an initial upper bound of 250 ms, and a 30 s cap; sessions lasting at
 least 30 s reset the backoff counter.
 
+Failed WebSocket handshakes honor the HTTP
+[`Retry-After`](https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after) header, both as seconds
+and as an HTTP date. The retry delay is the greater of the local backoff and the
+server's requested wait; neither the local cap nor jitter shortens a server
+cooldown. HTTP dates use the local wall clock. Missing or malformed headers on
+HTTP 429 use a 60 s minimum pause; HTTP 418 (IP ban) uses a 120 s minimum pause.
+Other errors without a valid header retain the ordinary exponential backoff.
+The reconnect status includes the selected delay and error reason, so it is
+visible in logs and Redis snapshots. Shutdown cancels the wait immediately.
+
 A failed exchange retains its old book for diagnosis while its status blocks
 active decisions. The other feed continues independently. Unexpected task exits
 or panics stop the process with an error. Tasks share a runtime; this is not
@@ -369,6 +379,23 @@ storage, hardcoded symbol, and internal long polling choices are included.
 
 ## Checks and known limitations
 
+All test implementations are in `tests/`:
+
+| Location | Coverage |
+| --- | --- |
+| `tests/unit/model.rs` | Exchange payload parsing and book validation |
+| `tests/unit/store.rs` | Freshness, immutable captures, and long polling |
+| `tests/unit/signal.rs` | Signal decisions, feed failures, and arithmetic bounds |
+| `tests/unit/config.rs` | Configuration and local backoff bounds |
+| `tests/unit/feed.rs` | Mock WebSockets, reconnect, watchdog, backpressure, and `Retry-After` |
+| `tests/unit/observer.rs` | Published schema, capture semantics, and clock skew |
+| `tests/unit/common.rs` | Shared fixtures and waiting helpers |
+| `tests/redis_snapshot.rs` | Isolated Redis publisher/observer integration |
+
+Unit modules are linked with `#[cfg(test)]` from `src/` to preserve access to
+internal functions without making them part of the public API. The Redis test
+is a separate integration test and requires `redis-server` in `PATH`.
+
 ```sh
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
@@ -383,6 +410,9 @@ signal directions/thresholds, independent statuses, immutable captures, long
 polling, invalid frames, ID regression/reset, reconnect, backpressure, ping/pong,
 and the depth watchdog. Observer tests check the actual publisher schema,
 capture-only signal semantics, clock skew, and malformed/unsupported exports.
+Retry tests check seconds/date headers, missing/malformed headers, server waits
+above the local cap, both exchange reconnect loops, and shutdown during a long
+cooldown. They use local mock servers and do not generate exchange rate limits.
 The Redis integration test covers publisher/observer reads, the observer CLI,
 TTL expiry, and reconnect after Redis restart. Ordinary tests use local mock WS
 servers; exchange access is not required. CI runs formatting, Clippy, tests, and

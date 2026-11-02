@@ -80,4 +80,5 @@ pub async fn wait_for_shutdown() -> anyhow::Result<()> {
 }
 
 #[cfg(test)]
+#[path = "../tests/unit/mod.rs"]
 mod tests;

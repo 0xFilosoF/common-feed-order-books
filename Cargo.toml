@@ -11,6 +11,7 @@ config = { version = "0.15", default-features = false, features = ["yaml"] }
 dotenvy = "0.15"
 fastrand = "2"
 futures-util = { version = "0.3", features = ["sink"] }
+httpdate = "1"
 kanal = "0.1.1"
 redis = { version = "1", default-features = false, features = ["tokio-comp"] }
 rust_decimal = { version = "1", features = ["serde-with-str"] }

@@ -7,11 +7,18 @@ use {
     anyhow::{Context, bail, ensure},
     futures_util::{SinkExt, StreamExt},
     kanal::AsyncSender,
-    std::{sync::Arc, time::Duration},
+    std::{
+        sync::Arc,
+        time::{Duration, SystemTime},
+    },
     tokio::time::{Instant, sleep, sleep_until, timeout},
     tokio_tungstenite::{
         connect_async_with_config,
-        tungstenite::{Message, protocol::WebSocketConfig},
+        tungstenite::{
+            Error as WebSocketError, Message,
+            http::{StatusCode, header::RETRY_AFTER},
+            protocol::WebSocketConfig,
+        },
     },
     tokio_util::sync::CancellationToken,
 };
@@ -52,7 +59,8 @@ pub(crate) async fn run_at(
         if started.elapsed() >= Duration::from_secs(30) {
             failures = 0;
         }
-        let delay = backoff(&config, failures);
+        // Server cooldowns are a minimum, independent of the local backoff cap/jitter.
+        let delay = backoff(&config, failures).max(server_retry_delay(&error, SystemTime::now()).unwrap_or_default());
         failures = failures.saturating_add(1);
         let reason = format!("attempt {failures}, retry in {}ms: {reason}", delay.as_millis());
         status(&sender, &config, &shutdown, FeedStatus::Reconnecting, reason).await?;
@@ -67,6 +75,32 @@ pub(crate) async fn run_at(
 pub(crate) fn backoff(config: &FeedConfig, failures: u32) -> Duration {
     let ceiling = config.reconnect_initial_ms.saturating_mul(1_u64 << failures.min(31)).min(config.reconnect_max_ms);
     Duration::from_millis(fastrand::u64((ceiling / 2).max(1)..=ceiling))
+}
+
+fn server_retry_delay(error: &anyhow::Error, now: SystemTime) -> Option<Duration> {
+    let WebSocketError::Http(response) = error.downcast_ref::<WebSocketError>()? else {
+        return None;
+    };
+    if let Some(delay) = response.headers().get(RETRY_AFTER).and_then(|value| value.to_str().ok()).and_then(|value| {
+        let value = value.trim();
+        if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) {
+            // Saturate oversized delta-seconds instead of falling back to an early retry.
+            let seconds = value
+                .bytes()
+                .fold(0_u64, |seconds, byte| seconds.saturating_mul(10).saturating_add(u64::from(byte - b'0')));
+            Some(Duration::from_secs(seconds))
+        } else {
+            httpdate::parse_http_date(value).ok().map(|date| date.duration_since(now).unwrap_or_default())
+        }
+    }) {
+        return Some(delay);
+    }
+    match response.status() {
+        // A missing/malformed header must not turn rate limits or IP bans into fast retries.
+        StatusCode::TOO_MANY_REQUESTS => Some(Duration::from_secs(60)),
+        StatusCode::IM_A_TEAPOT => Some(Duration::from_secs(120)),
+        _ => None,
+    }
 }
 
 async fn session(
@@ -185,3 +219,7 @@ async fn emit(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/feed.rs"]
+mod tests;
