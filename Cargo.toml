@@ -6,27 +6,56 @@ publish = false
 default-run = "feed-order-books"
 
 [dependencies]
-anyhow = "1"
-config = { version = "0.15", default-features = false, features = ["yaml"] }
-dotenvy = "0.15"
-fastrand = "2"
-futures-util = { version = "0.3", features = ["sink"] }
-httpdate = "1"
-kanal = "0.1.1"
-redis = { version = "1", default-features = false, features = ["tokio-comp"] }
-rust_decimal = { version = "1", features = ["serde-with-str"] }
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
-serde = { version = "1", features = ["derive", "rc"] }
-serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }
-tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
-tokio-util = { version = "0.7", features = ["rt"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+anyhow = { version = "1.0.104", features = ["std"] }
+config = { version = "0.15.27", default-features = false, features = ["yaml"] }
+dotenvy = { version = "0.15.7" }
+fastrand = { version = "2.5.0", features = ["std"] }
+futures-util = { version = "0.3.34", features = ["sink", "std"] }
+httpdate = { version = "1.0.3" }
+kanal = { version = "0.1.1", features = ["async"] }
+redis = { version = "1.8.1", default-features = false, features = [
+    "tokio-comp",
+] }
+rust_decimal = { version = "1.43.0", features = ["serde-with-str", "std"] }
+rustls = { version = "0.23.46", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+] }
+serde = { version = "1.0.229", features = ["derive", "rc", "std"] }
+serde_json = { version = "1.0.154", features = ["std"] }
+tokio = { version = "1.54.1", features = [
+    "macros",
+    "rt-multi-thread",
+    "net",
+    "signal",
+    "sync",
+    "time",
+] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = [
+    "connect",
+    "rustls-tls-native-roots",
+] }
+tokio-util = { version = "=.7.20", features = ["rt"] }
+tracing = { version = "0.1.44", features = ["std"] }
+tracing-subscriber = { version = "0.3.23", features = [
+    "ansi",
+    "env-filter",
+    "fmt",
+    "json",
+    "smallvec",
+    "std",
+    "tracing-log",
+] }
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = { version = "0.7.0", features = [
+    "background_threads_runtime_support",
+] }
 
 [dev-dependencies]
-tempfile = "3"
-tokio = { version = "1", features = ["test-util"] }
+tempfile = { version = "3.27.0", features = ["getrandom"] }
+tokio = { version = "1.54.1", features = ["test-util"] }
 
 [lints.clippy]
 manual_let_else = "warn"

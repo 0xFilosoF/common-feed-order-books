@@ -12,6 +12,7 @@ show what the service is doing. There is no HTTP server.
 Requirements: Rust 1.95.0 through rustup, a reachable Redis instance, and outbound
 TLS access to the public exchange WebSocket endpoints. Docker Compose can start
 Redis for you. No exchange account, API key, signature, or private key is needed.
+Local native builds also require a C compiler and `make` to build bundled jemalloc.
 
 **No environment variables are mandatory for the supplied local setup.** Run
 commands from the repository root so the default `config.yaml` can be found.
